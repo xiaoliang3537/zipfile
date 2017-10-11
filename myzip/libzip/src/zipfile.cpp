@@ -2776,12 +2776,14 @@ int DecompressionDir(const char *pstrFilePath, const char *pstrSavePath, const c
                 {
                     // singel file save path
                     memset(szTempSavePath, 0x0, sizeof(szTempSavePath));
+                    string strDiskFile;
 #ifdef WIN32
                     sprintf(szTempSavePath, "%s\\%s", pstrSavePath, szZipFName );
+                    strDiskFile = FileUtils::SlToBsl(szTempSavePath);
 #else
                     sprintf(szTempSavePath, "%s/%s", pstrSavePath, szZipFName );
+                    strDiskFile = FileUtils::BslToSl(szTempSavePath);
 #endif
-                    string strDiskFile = FileUtils::SlToBsl(szTempSavePath);
                     strFileDir = FileUtils::ExtractFileDir(strDiskFile);
                     // 添加目录
                     FileUtils::MakeSureDirExsitsW(strFileDir.c_str());
@@ -2863,9 +2865,6 @@ int DecompressionZip(const char *pstrSavePath, const char *strZipFilePath)
     {
         return 1;
     }
-    // 添加目录
-    FileUtils::MakeSureDirExsitsW(pstrSavePath);
-    std::string strFileDir = FileUtils::ExtractFileDir(pstrSavePath);
 
     unzFile unzfile =NULL;
     unz_global_info* pGlobalInfo = new unz_global_info;
@@ -2876,6 +2875,16 @@ int DecompressionZip(const char *pstrSavePath, const char *strZipFilePath)
     char szZipFName[MAX_PATH];
     std::string strDiskFile;
     std::string strDiskPath;
+    std::string strTempPath ;
+    // 添加目录
+#ifdef WIN32
+    strTempPath = FileUtils::SlToBsl(pstrSavePath);
+    FileUtils::MakeSureDirExsitsW(strTempPath.c_str());
+#else
+    strTempPath = FileUtils::BslToSl(pstrSavePath);
+    FileUtils::MakeSureDirExsitsW(strTempPath.c_str());
+#endif
+    std::string strFileDir = FileUtils::ExtractFileDir(pstrSavePath);
 
     unzfile = unzOpen(strZipFilePath);
     if(unzfile == NULL)
@@ -2915,15 +2924,25 @@ int DecompressionZip(const char *pstrSavePath, const char *strZipFilePath)
             switch(pFileInfo->external_fa)
             {
             case FILE_ATTRIBUTE_DIRECTORY:
+#ifdef WIN32
                 strDiskPath = std::string(pstrSavePath) + ("\\") + string(szZipFName);
-                strDiskFile = FileUtils::SlToBsl(strDiskFile);
+                strDiskFile = FileUtils::SlToBsl(strDiskFile.c_str());
+#else
+                strDiskPath = std::string(pstrSavePath) + ("/") + string(szZipFName);
+                strDiskFile = FileUtils::BslToSl(strDiskPath.c_str());
+#endif
                 FileUtils::MakeSureDirExsitsW(strDiskPath.c_str());
                 break;
             default:
                 {
                     // 创建文件
-                    strDiskFile = std::string(pstrSavePath) + ("\\") + string(szZipFName);
-                    strDiskFile = FileUtils::SlToBsl(strDiskFile);
+#ifdef WIN32
+                    strDiskPath = std::string(pstrSavePath) + ("\\") + string(szZipFName);
+                    strDiskFile = FileUtils::SlToBsl(strDiskPath.c_str());
+#else
+                    strDiskPath = std::string(pstrSavePath) + ("/") + string(szZipFName);
+                    strDiskFile = FileUtils::BslToSl(strDiskPath.c_str());
+#endif
                     string strpath = FileUtils::ExtractFilePath(strDiskFile);
                     FileUtils::MakeSureDirExsitsW(strpath.c_str());
                     FILE* file = fopen(strDiskFile.c_str(), "wb");
@@ -2994,7 +3013,9 @@ int DecompressionZip(const char *pstrSavePath, const char *strZipFilePath)
         pGlobalInfo = NULL;
     }
     delete pFileInfo;
-
+    if(0 == iRet )
+        iRet = 1;
+    return iRet;
 }
 
 
@@ -3076,9 +3097,9 @@ int AddFileToZipEx(int count, const char* strSrcFile, const char* strZipPath, co
  *  *@param strZipPath 添加文件到zip的相对目录
  *  *@param zipFilePack zip文件
  * */
-int AddDirToZip(const char* strSrcDirPath, const char* strZipPath, const char* zipFilePack)
+int AddDirToZip(const char* strSrcDirPath, const char* strZipPath, const char* zipFilePack,bool bNewZip )
 {
-    return addFilePathToZip(zipFilePack, strZipPath, strSrcDirPath );
+    return addFilePathToZip(zipFilePack, strZipPath, strSrcDirPath ,bNewZip);
 }
 
 int CreateZipFile(const char* strPath, const char* strZipName)
@@ -3391,7 +3412,7 @@ int DeleteInZipFileEx(const char* zipFilePack, const char* strDelName,bool bDir)
             }
             else if( iCurrLen - iCurrAleadySize <= MAX_COMMENT_LEN - (p - szBuff) )
             {
-                if (i == zipFile->entryCount - 1)
+                if (i == zipFile->entryCount )
                 {
                     break;
                 }
@@ -3751,7 +3772,7 @@ int deleteFileInApkEx(const char* strFilePath, const char* deleteFilePath)
             }
             else if( iCurrLen - iCurrAleadySize <= MAX_COMMENT_LEN - (p - szBuff) )
             {
-                if (i == zipFile->entryCount - 1)
+                if (i == zipFile->entryCount )
                 {
                     break;
                 }
@@ -3971,6 +3992,11 @@ int read_central_directory_entry_ex(Zipfile* file, Zipentry* entry,ZipentryCente
 
 
     p = *buf;
+
+//    if (*len < ENTRY_LEN) {
+//        fprintf(stderr, "cde entry not large enough\n");
+//        return -1;
+//    }
 
     if (read_le_int(&p[0x00]) != ENTRY_SIGNATURE) {
         fprintf(stderr, "Whoops: didn't find expected signature\n");
@@ -4195,7 +4221,71 @@ int initApkFile(Zipfile* file, const char* strFilePath)
         }
     }
 
-    // sort
+    //sort entry
+//    Zipentry* entres = NULL;
+//    Zipentry* temp = NULL;
+//    Zipentry* p1 = file->entries;
+//    Zipentry* p2 = p1->next;
+//    while(1)
+//    {
+//        if(p2 == NULL)
+//            break;
+//        if(p2->localHeaderRelOffset > p2->next->localHeaderRelOffset )
+//        {
+//            if(NULL == temp)
+//            {
+//                temp = p2;
+//                entres = temp;
+//            }
+//            else
+//            {
+//                temp->next = p2;
+//                temp = temp->next;
+//            }
+//            p1->next = p2->next;
+//            p2 = p2->next;
+//        }
+//        else
+//        {
+//            p1 = p2;
+//            p2 = p2->next;
+//        }
+//    }
+//    p1 = entres;
+//    while(1)
+//    {
+//        if(p1 == NULL)
+//            break;
+//        temp = p2 = file->entries;
+//        while(1)
+//        {
+//            if(p2 = NULL)
+//                break;
+//            if(p1->localHeaderRelOffset <= p2->localHeaderRelOffset)
+//            {
+//                if(temp == p2)
+//                {
+//                    file->entries = p1;
+//                    p1->next = p2;
+//                    p2 = p2->next;
+//                }
+//                else
+//                {
+//                    temp->next = p1;
+//                    p1->next = p2;
+//                    temp = p1;
+//                }
+//                break;
+//            }
+//            else
+//            {
+//                temp = p2;
+//                p2 = p2->next;
+//            }
+//        }
+//        p1 = p1->next;
+//    }
+
     for(int i = 0 ; i < file->totalEntryCount-1 ; i++)
     {
         Zipentry* entry_order_temp = file->entries;
