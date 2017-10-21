@@ -36,26 +36,26 @@ HEADERS += \
     src/fnmatch.h
 
 win32{
-    debug {
+    CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
         TARGET = libzip_d
         DESTDIR = $$PWD/../lib/debug
         LIBS += -L$$PWD\..\build\zlib\debug -lzlib
     }
-    else:release {
+    else{
         TARGET = libzip
         DESTDIR = $$PWD/../lib/release
         LIBS += -L$$PWD\..\build\zlib\release -lzlib
     }
 }
 else:unix{
-    debug {
+    CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
         TARGET = libzip_d
         DESTDIR = $$PWD/../lib/debug
         LIBS += -L$$PWD\..\build\zlib\debug -lzlib
     }
-    else:release {
+    else {
         TARGET = libzip
         DESTDIR = $$PWD/../lib/release
         LIBS += -L$$PWD\..\build\zlib\release -lzlib

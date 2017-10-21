@@ -30,37 +30,37 @@ HEADERS += \
 
 
 win32{
-    debug {
+    CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
         DESTDIR = $$PWD/../build/debug
-        TARGET = myzip
+        TARGET = myzip_d
         LIBS += -L$$PWD/../lib/debug -llibzip_d
         LIBS += -L$$PWD/../lib/debug -lzlib_d
         LIBS += -L$$PWD/../lib/debug -llibutils_d
     }
-    else:release {
+    else {
         TARGET = myzip
         DESTDIR = $$PWD/../lib/release
-        LIBS += -L$$PWD/../lib/debug -llibzip
+        LIBS += -L$$PWD/../lib/release -llibzip
         LIBS += -L$$PWD/../lib/release -lzlib
-        LIBS += -L$$PWD/../lib/debug -llibutils
+        LIBS += -L$$PWD/../lib/release -llibutils
     }
 }
 else:unix{
-    debug {
+    CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
         DESTDIR = $$PWD/../build/debug
-        TARGET = myzip
+        TARGET = myzip_d
         LIBS += -L$$PWD/../lib/debug -llibzip_d
         LIBS += -L$$PWD/../lib/debug -lzlib_d
         LIBS += -L$$PWD/../lib/debug -llibutils_d
     }
-    else:release {
+    else {
         TARGET = myzip
         DESTDIR = $$PWD/../lib/release
-        LIBS += -L$$PWD/../lib/debug -llibzip
+        LIBS += -L$$PWD/../lib/release -llibzip
         LIBS += -L$$PWD/../lib/release -lzlib
-        LIBS += -L$$PWD/../lib/debug -llibutils
+        LIBS += -L$$PWD/../lib/release -llibutils
     }
 }
 

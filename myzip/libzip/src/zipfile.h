@@ -109,7 +109,8 @@ int ZIPDecompression_ForMultiFile(const char *apkpath,const char * sTempDir,vect
  * @param bNewZip            if create new zip file
  * @return
  */
-EXPORT int addDataOrFileToZip(const char * pZipFilePath ,const char * pAddPathNameInZip,const char * pInFile,int iDataLen ,bool bNewZip = false);
+EXPORT int addDataOrFileToZip(const char * pZipFilePath ,const char * pAddPathNameInZip,const char * pInFile,int iDataLen
+                              ,bool bNewZip = false, ZipentryCenteral* center = NULL);
 
 /**
  * @brief addFilePathToZip  添加文件夹到zip文件 不解压原文件到磁盘
@@ -229,9 +230,10 @@ EXPORT int DecompressionZip(const char *strSavePath, const char *strZipFilePath)
  *  @param strSrcFile 待添加的源文件
  *  @param strZipPath 添加文件到zip的相对目录
  *  @param zipFilePack zip文件
+ *  @param
  *  @return 0 正常 !0失败
  * */
-EXPORT int AddFileToZip(const char* strSrcFile, const char* strZipPath, const char* zipFilePack);
+EXPORT int AddFileToZip(const char* strSrcFile, const char* strZipPath, const char* zipFilePack, ZipentryCenteral* center = NULL );
 
 /** @brief 添加文件列表到zip中
  *  @param count 文件个数

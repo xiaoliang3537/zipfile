@@ -1037,7 +1037,7 @@ int ZIPDecompression_ForMultiFile(const char *apkpath,const char * sTempDir,vect
     return iRet;
 }
 
-int addDataOrFileToZip(const char *pZipFilePath, const char *pAddPathNameInZip, const char *pInFile, int iDataLen,bool bNewZip)
+int addDataOrFileToZip(const char *pZipFilePath, const char *pAddPathNameInZip, const char *pInFile, int iDataLen,bool bNewZip, ZipentryCenteral* center)
 {
     int iRet = 1;
     if(!pZipFilePath || !pAddPathNameInZip || !pInFile)
@@ -1064,7 +1064,7 @@ int addDataOrFileToZip(const char *pZipFilePath, const char *pAddPathNameInZip, 
         {
             return -2;
         }
-        pAddData = (char*)malloc(1024*100);
+        pAddData = (char*)malloc(1024*100+1);
         if(!pAddData)
         {
             return -1;
@@ -1094,7 +1094,11 @@ int addDataOrFileToZip(const char *pZipFilePath, const char *pAddPathNameInZip, 
         memset(&FileInfo, 0,sizeof(FileInfo));
         filetime((char*)pAddPathNameInZip,&FileInfo.tmz_date,&FileInfo.dosDate);
 
-        if (zipOpenNewFileInZip(zip, pAddPathNameInZip, &FileInfo, NULL, 0, NULL, 0, NULL, Z_DEFLATED, 9) != ZIP_OK)
+        if(center == NULL)
+            iRet = zipOpenNewFileInZip(zip, pAddPathNameInZip, &FileInfo, NULL, 0, NULL, 0, NULL, Z_DEFLATED, 9);
+        else
+            iRet = zipOpenNewFileInZip(zip, pAddPathNameInZip, &FileInfo, NULL, 0, NULL, 0, NULL, center->compressionMethod, 9);
+        if ( iRet != ZIP_OK)
         {
             printf("[%s] zipOpenNewFileInZip failed \n", pInFile);
             iRet = -3;
@@ -1114,8 +1118,8 @@ int addDataOrFileToZip(const char *pZipFilePath, const char *pAddPathNameInZip, 
         {
             while(!feof(pFile))
             {
-                memset(pAddData , 0 , sizeof(pAddData));
-                int size = fread(pAddData,1,sizeof(pAddData),pFile);
+                memset(pAddData , 0 , 100*1024+1);
+                int size = fread(pAddData,1,100*1024,pFile);
                 if(zipWriteInFileInZip(zip,pAddData,size) < 0)
                 {
                     printf("[%s] zipWriteInFileInZip failed \n", pInFile);
@@ -1145,6 +1149,8 @@ int addDataOrFileToZip(const char *pZipFilePath, const char *pAddPathNameInZip, 
     {
         fclose(pFile);
     }
+    if(iRet == 0)
+        iRet = 1;
     return iRet;
 
 
@@ -1181,7 +1187,7 @@ int addFilePathToZip(const char *pZipFilePath, const char *pAddPathNameInZip, co
         memset(&FileInfo, 0,sizeof(FileInfo));
 
         char * pAddData = 0;
-        pAddData = (char*)malloc(1024*100);
+        pAddData = (char*)malloc(1024*100+1);
         if(!pAddData)
         {
             iRet = -1;
@@ -1220,9 +1226,9 @@ int addFilePathToZip(const char *pZipFilePath, const char *pAddPathNameInZip, co
 
             while( !feof(pFile) )
             {
-                memset(pAddData , 0 , 1024*100);
-                int size = fread(pAddData,1,sizeof(pAddData),pFile);
-                if(zipWriteInFileInZip(zip,pAddData,size) < 0)
+                memset(pAddData , 0x0 , 1024*100+1);
+                int size = fread(pAddData,1,1024*100 ,pFile);
+                if( zipWriteInFileInZip(zip, pAddData, size) < 0)
                 {
                     printf("[%s] zipWriteInFileInZip failed \n", s);
                     iRet = -3;
@@ -3023,7 +3029,7 @@ int DecompressionZip(const char *pstrSavePath, const char *strZipFilePath)
 // strFile 待添加源文件
 // strPath 添加文件到zip的相对目录
 // zipFileName zip文件
-int AddFileToZip(const char* strSrcFile, const char* strZipPath, const char* zipFilePack)
+int AddFileToZip(const char* strSrcFile, const char* strZipPath, const char* zipFilePack, ZipentryCenteral* center )
 {
     int iRet = 0;
     zipFile zf = zipOpen(zipFilePack, APPEND_STATUS_ADDINZIP); //添加zip文件
@@ -3045,7 +3051,12 @@ int AddFileToZip(const char* strSrcFile, const char* strZipPath, const char* zip
         zi.external_fa = 0;
 
         //在zip文件中创建新文件
-        zipOpenNewFileInZip(zf, strZipPath, &zi, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
+        if(NULL == center)
+            zipOpenNewFileInZip(zf, strZipPath, &zi, NULL, 0, NULL, 0, NULL, Z_DEFLATED, Z_DEFAULT_COMPRESSION);
+        else
+        {
+            zipOpenNewFileInZip(zf, strZipPath, &zi, NULL, 0, NULL, 0, NULL, center->compressionMethod, Z_DEFAULT_COMPRESSION);
+        }
 
         if (0 == access(strSrcFile,0))
         {
@@ -3060,11 +3071,11 @@ int AddFileToZip(const char* strSrcFile, const char* strZipPath, const char* zip
             }
 
             //读入源文件并写入zip文件
-            char buf[100*1024]; //buffer
+            char buf[100*1024+1]; //buffer
             int numBytes = 0;
             while( !feof(srcfp) )
             {
-                numBytes = fread(buf, 1, sizeof(buf), srcfp);
+                numBytes = fread(buf, 1, 100*1024, srcfp);
                 zipWriteInFileInZip(zf, buf, numBytes);
                 if( ferror(srcfp) )
                 {
@@ -3337,7 +3348,15 @@ int DeleteInZipFileEx(const char* zipFilePack, const char* strDelName,bool bDir)
         {
             centeralCurr = zipFile->centeral;
             centeralNext = centeralCurr->next;
-            iCurrLen = centeralNext->localHeaderRelOffset - centeralCurr->localHeaderRelOffset;
+            if(NULL != centeralNext)
+                iCurrLen = centeralNext->localHeaderRelOffset - centeralCurr->localHeaderRelOffset;
+            else
+                iCurrLen = zipFile->centralDirOffest - centeralCurr->localHeaderRelOffset;
+            if(0 > iCurrLen )
+            {
+                printf("delete file info error !\n");
+                return -4;
+            }
         }
         if (NULL == centeralCurr)
         {
@@ -4119,7 +4138,7 @@ int initApkFile(Zipfile* file, const char* strFilePath)
     else
     {
         fseek(f,0,SEEK_SET);
-        iReadLen = fread(szBuff, iFSize, 1, f);
+        iReadLen = fread(szBuff,1, iFSize, f);
     }
 
     p = szBuff + iReadLen-4;
@@ -4135,13 +4154,15 @@ int initApkFile(Zipfile* file, const char* strFilePath)
         }
         p--;
     }
-    if (p < start)
+    if(iFSize > MAX_EOCD_SEARCH)
     {
-        fprintf(stderr, "EOCD not found, not Zip\n");
-        iRet = 3;
-        return iRet;
+        if (p < start)
+        {
+            fprintf(stderr, "EOCD not found, not Zip\n");
+            iRet = 3;
+            return iRet;
+        }
     }
-
     // 解析eocd
     int len = szBuff+iReadLen-eocd;
 

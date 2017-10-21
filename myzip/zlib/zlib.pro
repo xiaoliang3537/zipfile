@@ -5,22 +5,22 @@ TEMPLATE = lib
 CONFIG += staticlib
 
 win32{
-    debug {
+    CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
         TARGET = zlib_d
         DESTDIR = $$PWD/../lib/debug
     }
-    else:release {
+    else {
         TARGET = zlib
         DESTDIR = $$PWD/../lib/release
     }
 }
 else:unix{
-    debug {
+    CONFIG(debug, debug|release) {
         TARGET = zlib_d
         DESTDIR = $$PWD/../lib/debug
     }
-    else:release {
+    else {
         TARGET = zlib
         DESTDIR = $$PWD/../lib/release
     }

@@ -849,139 +849,134 @@ int LoadCentralDirectoryRecord(zip64_internal* pziinit)
   pziinit->begin_pos = byte_before_the_zipfile;
   pziinit->number_entry = number_entry_CD;
 
-    /**********************************************************************************************************************/
-    // 这里计算冗余数据长度
-    //ZPOS64_T offset_ds_size = 0;
-    // 查找最后一个文件偏移
-    // 查找最后文件结束
+  /**********************************************************************************************************************/
+  // 这里计算冗余数据长度
+  //ZPOS64_T offset_ds_size = 0;
+  // 查找最后一个文件偏移
+  // 查找最后文件结束
+  int iReSet = 0;
+    do{
+        unsigned int  header = 0;
+        unsigned short versionMadeBy = 0;
+        unsigned short versionToExtract = 0;
+        unsigned short GPBitFlag = 0;
+        unsigned short compressionMethod = 0;
+        unsigned short lastModFileTime = 0;
+        unsigned short lastModFileDate = 0;
+        unsigned int  CRC32 = 0;
+        unsigned int  compressedSize = 0;
+        unsigned int  uncompressedSize = 0;
+        unsigned short fileNameLength = 0;
+        unsigned short extraFieldLength = 0;
+        unsigned short fileCommentLength = 0;
+        unsigned short diskNumberStart = 0;
+        unsigned short internalAttrs = 0;
+        unsigned int  externalAttrs = 0;
+        unsigned int  localHeaderRelOffset = 0;
 
-    unsigned int  header;
-    unsigned short versionMadeBy;
-    unsigned short versionToExtract;
-    unsigned short GPBitFlag;
-    unsigned short compressionMethod;
-    unsigned short lastModFileTime;
-    unsigned short lastModFileDate;
-    unsigned int  CRC32;
-    unsigned int  compressedSize;
-    unsigned int  uncompressedSize;
-    unsigned short fileNameLength;
-    unsigned short extraFieldLength;
-    unsigned short fileCommentLength;
-    unsigned short diskNumberStart;
-    unsigned short internalAttrs;
-    unsigned int  externalAttrs;
-    unsigned int  localHeaderRelOffset;
-    const unsigned char* fileName;
-    const unsigned char* extraField;
-    const unsigned char* fileComment;
-
-    char* szTemp = malloc(1024);
-    int len = pziinit->central_dir.last_block->filled_in_this_block;
-
-    char*p = pziinit->central_dir.last_block->data + len - 4;
-    char head[4] = {0x50,0x4b,0x01,0x02};
-
-    while(p != pziinit->central_dir.last_block->data )
-    {
-      if(memcmp(head, p, 4) == 0 )
-      {
-          header = read_le_int(&p[0x00]);
-          versionMadeBy = read_le_short(&p[0x04]);
-          versionToExtract = read_le_short(&p[0x06]);
-          GPBitFlag =  read_le_short(&p[0x08]);
-          compressionMethod = read_le_short(&p[0x0a]);
-          lastModFileTime = read_le_short(&p[0x0c]);
-          lastModFileDate = read_le_short(&p[0x0e]);
-          CRC32 = read_le_int(&p[0x10]);
-          compressedSize =  read_le_int(&p[0x14]);
-          uncompressedSize = read_le_int(&p[0x18]);
-          fileNameLength =  read_le_short(&p[0x1c]);
-          extraFieldLength = read_le_short(&p[0x1e]);
-          fileCommentLength= read_le_short(&p[0x20]);
-          diskNumberStart =  read_le_short(&p[0x22]);
-          internalAttrs =  read_le_short(&p[0x24]);
-          externalAttrs =  read_le_int(&p[0x26]);
-          localHeaderRelOffset = read_le_int(&p[0x2a]);
-
-//          p+=46;
-//          if(0 != fileNameLength )
-//          {
-//              fileName = malloc(fileNameLength+1);
-//              memset(fileName, 0x0, sizeof(fileName));
-//              memcpy((void*)fileName, p, fileNameLength);
-//          }
-
-          break;
-      }
-      p--;
-    }
-    {
-        unsigned int readlen = 0;
-        if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, localHeaderRelOffset, ZLIB_FILEFUNC_SEEK_SET) != 0)
-            err=ZIP_ERRNO;
-
-        size_t buf_size = SIZEDATA_INDATABLOCK;
-        void* buf_read = (void*)ALLOC(buf_size);
-        memset(buf_read, 0x0, sizeof(buf_read));
-        readlen = ZREAD64(pziinit->z_filefunc, pziinit->filestream,buf_read,(uLong)buf_size);
-
-        char* p1 = (char*)buf_read;
-        char head[4] = {0x50,0x4b,0x03,0x04};
-        if(0 == memcmp(head, p1, 4))
+        if( NULL == pziinit->central_dir.last_block )
         {
-            unsigned short gflag = read_le_short(&p1[0x06]);
-            unsigned int comlen = read_le_int(&p1[0x12]);
-            unsigned int filenamelen = read_le_short(&p1[0x1a]);
-            unsigned int extrafieldlen = read_le_short(&p1[0x1c]);
-//            char* filename = NULL;
-//            if(filenamelen > 0 )
-//            {
-//                filename = malloc(filenamelen+1);
-//                memset(filename,0x0,filenamelen+1);
-//                memcpy(filename,p1+30,filenamelen);
-//            }
+          break;
+        }
 
-            unsigned int len = 30 + filenamelen + extrafieldlen + comlen;
-            if(gflag == 1)
-                len + 16;
-
-            if(offset_central_dir > localHeaderRelOffset + len)
-            {
-                g_trashdatalen = offset_central_dir - localHeaderRelOffset - len;
-            }
-
-            // 获取冗余数据
-            if(g_trashdatalen > 0 )
-            {
-                g_trashdata = malloc(g_trashdatalen+1);
-                memset(g_trashdata, 0x0, g_trashdatalen+1);
-                if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, localHeaderRelOffset + len, ZLIB_FILEFUNC_SEEK_SET) != 0)
-                    err=ZIP_ERRNO;
-
-                readlen = ZREAD64(pziinit->z_filefunc, pziinit->filestream,g_trashdata,(uLong)(g_trashdatalen));
-                if(readlen != g_trashdatalen)
-                    err=ZIP_ERRNO;
-            }
-            TRYFREE(buf_read);
-
-            if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, localHeaderRelOffset + len, ZLIB_FILEFUNC_SEEK_SET) != 0)
-                err=ZIP_ERRNO;
+        int len = 0;
+        if(NULL != pziinit->central_dir.last_block)
+        {
+            len = pziinit->central_dir.last_block->filled_in_this_block;
         }
         else
         {
-            // 如果定位错误 则走原来的流程
-            if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, offset_central_dir+byte_before_the_zipfile,ZLIB_FILEFUNC_SEEK_SET) != 0)
-                err=ZIP_ERRNO;
+            len = 0;
         }
 
+        char*p = pziinit->central_dir.last_block->data + len - 4;
+        char head[4] = {0x50,0x4b,0x01,0x02};
+
+        while( p >= pziinit->central_dir.last_block->data )
+        {
+          if(memcmp(head, p, 4) == 0 )
+          {
+              header = read_le_int(&p[0x00]);
+              versionMadeBy = read_le_short(&p[0x04]);
+              versionToExtract = read_le_short(&p[0x06]);
+              GPBitFlag =  read_le_short(&p[0x08]);
+              compressionMethod = read_le_short(&p[0x0a]);
+              lastModFileTime = read_le_short(&p[0x0c]);
+              lastModFileDate = read_le_short(&p[0x0e]);
+              CRC32 = read_le_int(&p[0x10]);
+              compressedSize =  read_le_int(&p[0x14]);
+              uncompressedSize = read_le_int(&p[0x18]);
+              fileNameLength =  read_le_short(&p[0x1c]);
+              extraFieldLength = read_le_short(&p[0x1e]);
+              fileCommentLength= read_le_short(&p[0x20]);
+              diskNumberStart =  read_le_short(&p[0x22]);
+              internalAttrs =  read_le_short(&p[0x24]);
+              externalAttrs =  read_le_int(&p[0x26]);
+              localHeaderRelOffset = read_le_int(&p[0x2a]);
+
+              break;
+          }
+          p--;
+        }
+        if(0 != localHeaderRelOffset)
+        {
+            unsigned int readlen = 0;
+            if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, localHeaderRelOffset, ZLIB_FILEFUNC_SEEK_SET) != 0)
+                err=ZIP_ERRNO;
+
+            size_t buf_size = SIZEDATA_INDATABLOCK;
+            void* buf_read = (void*)ALLOC(buf_size);
+            memset(buf_read, 0x0, sizeof(buf_read));
+            readlen = ZREAD64(pziinit->z_filefunc, pziinit->filestream,buf_read,(uLong)buf_size);
+
+            char* p1 = (char*)buf_read;
+            char head[4] = {0x50,0x4b,0x03,0x04};
+            if(0 == memcmp(head, p1, 4))
+            {
+                unsigned short gflag = read_le_short(&p1[0x06]);
+                unsigned int comlen = read_le_int(&p1[0x12]);
+                unsigned int filenamelen = read_le_short(&p1[0x1a]);
+                unsigned int extrafieldlen = read_le_short(&p1[0x1c]);
+
+                char* name = (char*)malloc(filenamelen+1);
+                memcpy(name, p1+30, filenamelen);
+
+                unsigned int len = 30 + filenamelen + extrafieldlen + comlen;
+                if(gflag & 0b1000 )
+                    len += 16;
+
+                if(offset_central_dir > localHeaderRelOffset + len)
+                {
+                    g_trashdatalen = offset_central_dir - localHeaderRelOffset - len;
+                }
+
+                // 获取冗余数据
+                if(g_trashdatalen > 0 )
+                {
+                    g_trashdata = malloc(g_trashdatalen+1);
+                    memset(g_trashdata, 0x0, g_trashdatalen+1);
+                    if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, localHeaderRelOffset + len, ZLIB_FILEFUNC_SEEK_SET) != 0)
+                        err=ZIP_ERRNO;
+
+                    readlen = ZREAD64(pziinit->z_filefunc, pziinit->filestream,g_trashdata,(uLong)(g_trashdatalen));
+                    if(readlen != g_trashdatalen)
+                        err=ZIP_ERRNO;
+                }
+                TRYFREE(buf_read);
+
+                if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, localHeaderRelOffset + len, ZLIB_FILEFUNC_SEEK_SET) != 0)
+                    err=ZIP_ERRNO;
+                iReSet = 1;
+            }
+        }
+    }while(0);
+
+    /**********************************************************************************************************************/
+    if(0 == iReSet)
+    {
+          if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, offset_central_dir+byte_before_the_zipfile,ZLIB_FILEFUNC_SEEK_SET) != 0)
+            err=ZIP_ERRNO;
     }
-
-  /**********************************************************************************************************************/
-
-//  if (ZSEEK64(pziinit->z_filefunc, pziinit->filestream, offset_central_dir+byte_before_the_zipfile,ZLIB_FILEFUNC_SEEK_SET) != 0)
-//    err=ZIP_ERRNO;
-
   return err;
 }
 
